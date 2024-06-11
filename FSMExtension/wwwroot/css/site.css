@@ -1,0 +1,129 @@
+﻿@font-face {
+    font-family: TradeGothicBold20;
+    src: url("../fonts/TradeGothicLTStd-BdCn20.otf") format("opentype");
+}
+
+@font-face {
+    font-family: TradeGothic18;
+    src: url("../fonts/TradeGothicLTStd-Cn18.otf") format("opentype");
+}
+
+.heading {
+    color: #00a3e0;
+    font-family: TradeGothicBold20;
+    font-size: 22px;
+    padding: 10px 0px;
+}
+
+.subheading {
+    color: #ffffff;
+    font-family: TradeGothicBold20;
+    padding: 15px 0px 0px 0px;
+}
+
+.body {
+    color: #ffffff;
+    background: #003963;
+    font-family: TradeGothic18;
+    padding: 8px;
+}
+
+.center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+}
+
+.contact-link {
+    padding: 10px 0px;
+    color: #ffffff;
+}
+
+.non-link {
+    color: #ffffff;
+    text-decoration: none;
+    cursor: text;
+}
+
+#importBtn {
+    font-family: TradeGothic18;
+    font-size: inherit;
+}
+
+#accordianChild .ui-accordion .ui-accordion-content .workspaceLink:hover {
+    color: #00a3e0;
+}
+
+#accordianChild .ui-accordion .ui-accordion-content .workspaceLink {
+    color: #0064A3;
+    text-decoration: underline;
+}
+
+.background-white {
+    background: none;
+    background-color: #ffffff;
+}
+
+#accordionMain .ui-state-default {
+    background: none;
+    background-color: #ffffff;
+}
+
+.padding {
+    padding: 0px 10px !important;
+    min-height: 350px !important;
+}
+
+.padding-button {
+    padding: 2px 2px !important;
+}
+
+.padding-container {
+    padding: 0 !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+}
+
+.left {
+    text-align: left !important;
+}
+
+.font {
+    font-family: TradeGothic18 !important;
+    font-size: 1rem !important;
+}
+
+.transparent {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+#accordionMain .ui-widget-content {
+    color: #ffffff;
+    background-color: transparent;
+}
+
+#contactsContent a {
+    color: #ffffff !important;
+}
+
+#contactsContent a:hover {
+    color: #0056b3 !important;
+    text-decoration: underline !important;
+}
+
+a {
+    color: #00a3e0 !important;
+    text-decoration: underline !important;
+}
+
+a:hover {
+    color: #003963 !important;
+    text-decoration: underline !important;
+}
+
+h3 {
+    text-align: center;
+    font-family: TradeGothic18;
+}

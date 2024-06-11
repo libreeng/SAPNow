@@ -1,0 +1,396 @@
+﻿@page
+@{
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Onsight NOW</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/systemjs/4.1.0/system.min.js"
+            integrity="sha256-i+j3ZmMaI9nPuzasKbNrT3evNnUewPBf5p9UEJdr2zA=" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/fsm-shell"></script>
+    <link rel="stylesheet" type="text/css" href="~/css/site.css" />
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/smoothness/jquery-ui.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+</head>
+
+<body class="body">
+    <script>
+        const { ShellSdk, SHELL_EVENTS } = FSMShell;
+        const shellSdk = ShellSdk.init(window.parent, "*");
+        shellSdk.setAllowedOrigins(['https://tqncljqr-44304.use2.devtunnels.ms', 'https://localhost:44304']);
+        sessionStorage.removeItem("isRunningWithinShell");
+        var receivedAnswerFromShell = false;
+        var cannotLogIn = false;
+        const PLEASE_CONTACT_LIBRESTREAM_MSG = "To activate this extension or for a free trial, please contact us at <a href='mailto:info@librestream.com' class='contact-link'>info@librestream.com</a>.";
+
+        if (!ShellSdk.isInsideShell()) {
+            showUI("noShell");
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            const fromEmail = urlParams.get("from");
+            const token = urlParams.get("t");
+
+            if (fromEmail) {
+                sessionStorage.setItem("fromEmail", fromEmail);
+            }
+            if (token) {
+                sessionStorage.setItem("token", token);
+            }
+
+            shellSdk.emit(SHELL_EVENTS.Version1.REQUIRE_CONTEXT, {
+                clientIdentifier: "onsight-connect-plugin",
+                auth: {
+                    response_type: 'token'  // request a user token within the context
+                },
+                extension: {
+                    deploymentId: ""
+                }
+            });
+
+            shellSdk.on(SHELL_EVENTS.Version1.REQUIRE_CONTEXT, async (event) => {
+                if (cannotLogIn) {
+                    showUI("showMessage", PLEASE_CONTACT_LIBRESTREAM_MSG);
+                    return;
+                }
+
+                receivedAnswerFromShell = true;
+                const {
+                    cloudHost,
+                    account,
+                    accountId,
+                    companyId,
+                    userId,
+                    extension,
+                    auth
+                } = JSON.parse(event);
+
+                await idpLogin(auth);
+
+                sessionStorage.setItem("cloudHost", cloudHost);
+                sessionStorage.setItem("isRunningWithinShell", true);
+                sessionStorage.setItem("accountName", account);
+                sessionStorage.setItem("accountId", accountId);
+                sessionStorage.setItem("companyId", companyId);
+                sessionStorage.setItem("userId", userId);
+                sessionStorage.removeItem("activityId");
+
+                if (isLoggedIn()) {
+                    showUI("showMessage", "No Activity selected.");
+                } else {
+                    showUI("loggedOut");
+                }
+            });
+
+            shellSdk.onViewState("activityID", async id => {
+                if (cannotLogIn) {
+                    showUI("showMessage", PLEASE_CONTACT_LIBRESTREAM_MSG);
+                    return;
+                }
+
+                sessionStorage.setItem("activityId", id);
+                if (isLoggedIn()) {
+                    if (id) {
+                        const connections = await getConnections(id);
+                        showUI("showContacts", connections);
+                    }
+                    else {
+                        showUI("showMessage", "No Activity selected.");
+                    }
+                } else {
+                    showUI("loggedOut");
+                }
+            });
+        }
+
+        function isLoggedIn() {
+            return Boolean(sessionStorage.getItem("token"));
+        }
+
+        async function idpLogin(auth) {
+            const cloudHost = sessionStorage.getItem("cloudHost");
+            const accountId = sessionStorage.getItem("accountId");
+            const accountName = sessionStorage.getItem("accountName");
+            const companyId = sessionStorage.getItem("companyId");
+            const userId = sessionStorage.getItem("userId");
+
+            try {
+                const response = await fetch('/auth/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + auth.access_token,
+                        'X-Cloud-Host': cloudHost,
+                        'X-Account-Name': accountName,
+                        'X-Company-ID': companyId,
+                        'X-User-ID': userId
+                    }
+                });
+                if (response.status === 200) {
+                    const data = await response.json();
+                    if (data.token) {
+                        sessionStorage.setItem("token", data.token);
+                        sessionStorage.setItem("fromEmail", data.email);
+                        console.log(data.token);
+                    } else {
+                        console.log("Misconfigured!");
+                    }
+                }
+            }
+            catch (ex) {
+                console.log(ex.message || 'An unknown error occured');
+            }
+        }
+
+        async function getConnections(activityId) {
+            /* Forward query params on to API */
+            var urls = [];
+            if (!isLoggedIn()) {
+                return urls;
+            }
+
+            const cloudHost = sessionStorage.getItem("cloudHost");
+            const accountId = sessionStorage.getItem("accountId");
+            const accountName = sessionStorage.getItem("accountName");
+            const companyId = sessionStorage.getItem("companyId");
+            const userId = sessionStorage.getItem("userId");
+            const fromEmail = sessionStorage.getItem("fromEmail");
+            const token = sessionStorage.getItem("token");
+
+            if (!activityId) {
+                showUI("showMessage", "No Activity selected.");
+                return urls;
+            }
+
+            showUI("showMessage", "Loading contacts...", "onsight");
+            const response = await fetch(`/api/v1/contacts?t=Activity&id=${activityId}`, {
+                method: "GET",
+                mode: "cors",
+                credentials: "include",
+                headers: {
+                    "Authorization": "Bearer " + token,
+                },
+                cache: "no-cache"
+            });
+
+            if (response.status === 401) {
+                /* Forbidden; assume this means that our existing token is no longer valid and force a re-login. */
+                sessionStorage.removeItem("token");
+                sessionStorage.removeItem("fromEmail");
+                location.reload();
+            } else if (response.ok) {
+                urls = await response.json();
+            } else {
+                console.error("Failed to fetch connections: " + response.statusText);
+                showUI("showMessage", "Contacts unavailable");
+            }
+
+            return urls;
+        }
+
+        function showUI(state, data, destination) {
+            var login = $(".login");
+            var noShell = $(".noShell");
+            var message = $(".message");
+            var content = $(".content");
+
+            if (!login) {
+                return;
+            }
+            login.css('display', 'none');
+            noShell.css('display', 'none');
+            content.css('display', 'none');
+            message.css('display', 'none');
+
+            switch (state) {
+                case "noShell":
+                    noShell.css('display', 'block');
+                    break;
+                case "loggedOut":
+                    login.css('display', 'block');
+                    break;
+                case "showMessage":
+                    message.css('display', 'block');
+                    if (destination != undefined && destination == 'flow') {
+                        if (data == 'Workflows unavailable') {
+                            $("#workSpaceContent").css('display', 'block');
+                            $("#contactsContent").css('display', 'block');
+                            $("#onsightMsg").parent().css('display', 'none');
+                        }
+                        $("#flowMsg").html(data);
+                    } else if (destination != undefined && destination == 'onsight') {
+                        $("#onsightMsg").html(data);
+                    } else {
+                        message.find('span').html(data);
+                    }
+                    break;
+                case "showContacts":
+                    {
+                        const fieldTechs = data.filter(c => c.role === "FieldTech");
+                        const experts = data.filter(c => c.role !== "FieldTech");
+
+                        content.css('display', 'block');
+                        updateContactsTable(document.getElementById("fieldTechsTable"), fieldTechs);
+                        updateContactsTable(document.getElementById("expertsTable"), experts);
+                        break;
+                    }
+            }
+        }
+
+        async function openConnection(name, email) {
+            if (!email) {
+                return;
+            }
+
+            const token = sessionStorage.getItem("token");
+            const url = `/api/v1/meetings`;
+            const fromEmail = sessionStorage.getItem("fromEmail");
+            const startDate = new Date();
+            const endDate = new Date(startDate.getTime() + 30 * 60000);
+
+            try {
+                let response = await fetch(url, {
+                    method: "post",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        "topic": "My Onsight NOW Meeting",
+                        "message": "Please join me in an Onsight NOW meeting.",
+                        "allowGuests": true,
+                        "startTime": startDate.toISOString(),
+                        "endTime": endDate.toISOString(),
+                        "isPrivate": true,
+                        "participants": {
+                            "emails": [fromEmail, email],
+                            "phoneNumbers": []
+                        }
+                    }),
+                    cache: "no-cache"
+                });
+
+                const nowUrl = await response.text();
+                if (nowUrl.includes("https://tools.ietf.org/html/rfc7231")) {
+                    // The URL returned by the backend indicates that Onsight cannot call the contact
+                    alert("There was a problem trying to contact " + name + ". Please use the Onsight Platform Manager to ensure this person is a member of your Onsight domain and try again.");
+                }
+                else {
+                    // Onsight URL looks legit; open a new browser window to launch Connect app.
+                    window.open(nowUrl);
+                }
+            }
+            catch (err) {
+                console.log("Failed to open connection to " + name + ": " + err);
+            }
+        }
+
+        function formatDateTime(value) {
+            var m = new Date(value);
+            var dateString = (m.getUTCMonth() + 1) + "/" + m.getUTCDate() + "/" + m.getUTCFullYear() + " " + m.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', hour12: true });
+            return dateString;
+        }
+
+        function timeDiffCalc(dateFuture, dateNow) {
+            let value = Math.abs(dateFuture - dateNow) / 1000;
+            const sec = parseInt(value, 10);
+            let hours = Math.floor(sec / 3600);
+            let minutes = Math.floor((sec - (hours * 3600)) / 60);
+            let seconds = sec - (hours * 3600) - (minutes * 60);
+            if (hours < 10) {
+                hours = "0" + hours;
+            }
+            if (minutes < 10) {
+                minutes = "0" + minutes;
+            }
+            if (seconds < 10) {
+                seconds = "0" + seconds;
+            }
+            return hours + ':' + minutes + ':' + seconds;
+        }
+
+        function updateContactsTable(table, contacts) {
+            if (!table || !contacts) {
+                return;
+            }
+
+            /* Delete old table rows */
+            while (table.rows.length > 0) {
+                table.deleteRow(0);
+            }
+
+            /* Insert new table rows */
+            for (var i = 0; i < contacts.length; i++) {
+                const row = table.insertRow(table.rows.length);
+                const name = row.insertCell(0);
+                var clickAttrs = 'class="non-link"';
+                if (contacts[i].email) {
+                    clickAttrs = 'class="contact-link" onclick="openConnection(\'' + contacts[i].name + '\', \'' + contacts[i].email + '\')"';
+                }
+                name.innerHTML = '<a href="#" ' + clickAttrs + '>' + contacts[i].name + '</a>';
+
+                if (contacts[i].title) {
+                    name.innerHTML += ' - ' + contacts[i].title;
+                }
+            }
+
+            if (contacts.length == 0) {
+                const row = table.insertRow(0);
+                const msg = row.insertCell(0);
+                msg.innerHTML = "<span>None available</span>";
+            }
+        }
+
+        $(function() {
+            var classes = {
+                "ui-selectmenu-text": "font",
+                "ui-selectmenu-button": "padding-button"
+            };
+            $("#myWorkflows").selectmenu({
+                classes: classes
+            })
+            .selectmenu("menuWidget")
+            .menu({
+                classes: {
+                    "ui-menu-item": "font"
+                }
+            });
+            $("#myWorkflows").on("selectmenuselect", async function (event, ui) {
+                await updateActivitySelectedWorkflow(event, ui);
+            });
+            $("button").button().addClass("padding-button");
+        });
+    </script>
+
+    <div>
+        <img src="~/images/onsight-logo.svg" width="75" height="35" class="center" style="width: 75px; height: 35px;" />
+        <div class="heading center"></div>
+
+        <div class="login" style="display: none; padding-top: 50px;">
+            <span class="center">Loading...</span>
+        </div>
+        <div class="noShell center" style="display: none;">
+            <p>Extension needs to run inside Shell</p>
+        </div>
+        <div class="message center" style="display: none; padding-top: 50px;">
+            <span id="onsightMsg">&nbsp;</span>
+        </div>
+        <div class="content" id="contactsContent" style="display: none;">
+            <div style="padding: 0px 0px 10px 0px;">Initiate an Onsight NOW meeting with the following individuals assigned to this activity.</div>
+
+            <div class="subheading">ASSIGNED FIELD RESOURCE(S)</div>
+            <table id="fieldTechsTable" width="100%">
+                <tr></tr>
+            </table>
+            <div class="subheading">ASSIGNED EXPERT/HELPDESK RESOURCE(S)</div>
+            <table id="expertsTable" width="100%">
+                <tr></tr>
+            </table>
+        </div>
+    </div>
+
+</body>
+
+</html>

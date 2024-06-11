@@ -1,0 +1,115 @@
+﻿@*
+    This is the would-be page for the SAP FSM mobile app.
+
+    It is currently recommended that you do NOT use this as an external application
+    link from SAP FSM mobile, as there is no way to authenticate incoming requests.
+*@
+
+@page
+@{
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Onsight Connect</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="/css/site.css" />
+</head>
+
+<body class="body">
+    <script>
+        async function getConnectUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const fromEmail = urlParams.get("from");
+            const toEmail = urlParams.get("to");
+            const token = sessionStorage.getItem("token");
+            const startDate = new Date();
+            const endDate = new Date(startDate.getTime() + 30 * 60000);
+
+            try {
+                let response = await fetch("/api/v1/meetings", {
+                    method: "post",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        "topic": "My Onsight NOW Meeting",
+                        "message": "Please join me in an Onsight NOW meeting.",
+                        "allowGuests": true,
+                        "startTime": startDate.toISOString(),
+                        "endTime": endDate.toISOString(),
+                        "isPrivate": true,
+                        "participants": {
+                            "emails": [fromEmail, toEmail],
+                            "phoneNumbers": []
+                        }
+                    }),
+                    cache: "no-cache"
+                });
+
+                if (response.ok) {
+                    url = await response.text();
+                } else {
+                    showMessage("Unavailable");
+                }
+            }
+            catch (err) {
+                showMessage("Unavailable");
+            }
+
+            return url;
+        }
+
+        function showMessage(msg) {
+            const message = document.querySelector("#message");
+            message.innerHTML = msg;
+            message.style.visibility = msg ? "visible" : "hidden";
+
+            const table = document.querySelector("#expertsTable");
+            if (table) {
+                table.style.visibility = msg ? "hidden" : "visible";
+            }
+        }
+
+        async function main() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const toFirst = urlParams.get("toFirst");
+            const toLast = urlParams.get("toLast");
+            const expertLink = document.querySelector("#contact_expert");
+
+            if (toFirst && toLast) {
+                expertLink.innerHTML = toFirst + ' ' + toLast;
+            }
+            else if (toFirst) {
+                expertLink.innerHTML = toFirst;
+            }
+
+            expertLink.href = await getConnectUrl();
+        }
+
+        window.onload = async () => {
+            await main();
+        };
+    </script>
+
+    <div>
+        <img src="~/images/onsight-logo.svg" width="150" height="70" class="center" style="width: 150px; height: 70px;" />
+        <div class="heading center">REMOTE EXPERT ASSISTANCE</div>
+
+        <div id="content">
+            <div style="padding: 0px 0px 10px 0px;">Select a link below to initiate an Onsight Connect call with individuals assigned to this activity.</div>
+
+            <div class="subheading">ASSIGNED EXPERT/HELPDESK RESOURCE(S)</div>
+            <span id="message" />
+            <table id="contacts_table" width="100%">
+                <tr>
+                    <td><a id="contact_expert" class="contact-link">Contact Expert</a></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</body>
+
+</html>
