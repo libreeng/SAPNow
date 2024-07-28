@@ -6,6 +6,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Onsight NOW</title>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/systemjs/4.1.0/system.min.js"
             integrity="sha256-i+j3ZmMaI9nPuzasKbNrT3evNnUewPBf5p9UEJdr2zA=" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/fsm-shell"></script>
@@ -14,6 +15,7 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="/js/onsight.js"></script>
 </head>
 
 <body class="body">
@@ -103,45 +105,6 @@
                     showUI("loggedOut");
                 }
             });
-        }
-
-        function isLoggedIn() {
-            return Boolean(sessionStorage.getItem("token"));
-        }
-
-        async function idpLogin(auth) {
-            const cloudHost = sessionStorage.getItem("cloudHost");
-            const accountId = sessionStorage.getItem("accountId");
-            const accountName = sessionStorage.getItem("accountName");
-            const companyId = sessionStorage.getItem("companyId");
-            const userId = sessionStorage.getItem("userId");
-
-            try {
-                const response = await fetch('/auth/', {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + auth.access_token,
-                        'X-Cloud-Host': cloudHost,
-                        'X-Account-Name': accountName,
-                        'X-Company-ID': companyId,
-                        'X-User-ID': userId
-                    }
-                });
-                if (response.status === 200) {
-                    const data = await response.json();
-                    if (data.token) {
-                        sessionStorage.setItem("token", data.token);
-                        sessionStorage.setItem("fromEmail", data.email);
-                        console.log(data.token);
-                    } else {
-                        console.log("Misconfigured!");
-                    }
-                }
-            }
-            catch (ex) {
-                console.log(ex.message || 'An unknown error occured');
-            }
         }
 
         async function getConnections(activityId) {
@@ -365,7 +328,7 @@
     </script>
 
     <div>
-        <img src="~/images/onsight-logo.svg" width="75" height="35" class="center" style="width: 75px; height: 35px;" />
+        <img src="~/images/onsight-logo.svg" class="center" style="width: 128px; height: 128px; margin-top: -42px;" />
         <div class="heading center"></div>
 
         <div class="login" style="display: none; padding-top: 50px;">

@@ -56,5 +56,23 @@ namespace FSMExtension.Controllers
             var meetingUrl = await nowClient.ScheduleMeetingAsync(meetingRequest);
             return Ok(meetingUrl);
         }
+
+        [HttpPost("chat")]
+        [Consumes("application/json")]
+        [Produces("application/json")]
+        public async Task<ActionResult<IdaChatResponse>> ChatWithIda([FromBody] IdaChatRequest chatRequest)
+        {
+            var user = await authService.GetUserAsync(Request.Headers.Authorization);
+            if (user == null)
+            {
+                return Unauthorized();
+            }
+
+            var clientCreds = ClientCredentials.GetOnsightNow(user.CloudHost, user.AccountName);
+            var nowClient = new OnsightNowClient(clientCreds);
+            var responseMessage = await nowClient.ChatWithIdaAsync(chatRequest);
+
+            return Ok(responseMessage);
+        }
     }
 }

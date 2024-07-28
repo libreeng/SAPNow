@@ -1,0 +1,291 @@
+﻿@page "/ida"
+@model FSMExtension.Pages.ChatWithIdaModel
+@{
+}
+
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/systemjs/4.1.0/system.min.js"
+            integrity="sha256-i+j3ZmMaI9nPuzasKbNrT3evNnUewPBf5p9UEJdr2zA=" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/fsm-shell"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"/></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="/ida/css/chat.css" />
+    <script src="/js/onsight.js"></script>
+</head>
+<body>
+
+    <script>
+        let chatState = {
+            variables: [
+                {
+                    "key": "advancedCitation",
+                    "value": "true"
+                },
+                {
+                    "key": "userChat",
+                    "value": "true"
+                },
+                {
+                    "key": "useDocument",
+                    "value": "true"
+                },
+                {
+                    "key": "useCall",
+                    "value": "true"
+                },
+                {
+                    "key": "useImage",
+                    "value": "true"
+                },
+                {
+                    "key": "useCollection",
+                    "value": "true"
+                }
+            ],
+            chatHistory: []
+        };
+
+        const { ShellSdk, SHELL_EVENTS } = FSMShell;
+        const shellSdk = ShellSdk.init(window.parent, "*");
+        shellSdk.setAllowedOrigins([]);
+        sessionStorage.removeItem("isRunningWithinShell");
+        var receivedAnswerFromShell = false;
+        var cannotLogIn = false;
+        const PLEASE_CONTACT_LIBRESTREAM_MSG = "To activate this extension or for a free trial, please contact us at <a href='mailto:info@librestream.com' class='contact-link'>info@librestream.com</a>.";
+
+        if (ShellSdk.isInsideShell()) {
+            shellSdk.emit(SHELL_EVENTS.Version1.REQUIRE_CONTEXT, {
+                clientIdentifier: "onsight-connect-plugin",
+                auth: {
+                    response_type: 'token'  // request a user token within the context
+                },
+                extension: {
+                    deploymentId: ""
+                }
+            });
+
+            shellSdk.on(SHELL_EVENTS.Version1.REQUIRE_CONTEXT, async (event) => {
+                if (cannotLogIn) {
+                    return;
+                }
+
+                receivedAnswerFromShell = true;
+                const {
+                    cloudHost,
+                    account,
+                    accountId,
+                    companyId,
+                    userId,
+                    extension,
+                    auth
+                } = JSON.parse(event);
+
+                await idpLogin(auth);
+
+                sessionStorage.setItem("isRunningWithinShell", true);
+                sessionStorage.setItem("userId", userId);
+
+                if (isLoggedIn()) {
+                    appendIdaResponse({
+                        value: "Hello, I am Ida, how can I help?"
+                    });
+                }
+            });
+        }
+
+        function scrollToBottom() {
+            // Scroll to bottom of chat history
+            const chatHistory = $(".chat-history")[0];
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function mdToHtml(markdownText) {
+            const converter = new showdown.Converter({ openLinksInNewWindow: true});
+            return converter.makeHtml(markdownText);
+        }
+
+        function appendUserMessage(msg) {
+            chatState.chatHistory.push(msg);
+            const html = `
+                <li class="clearfix">
+                    <div class="message-data text-right">
+                        <span class="message-user">Me</span>
+                        <span class="message-data-time">${new Date(msg.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="message my-message float-right">${mdToHtml(msg.content)}</div>
+                </li>`;
+            
+            const list = document.getElementById("chatHistoryList");
+            list.insertAdjacentHTML("beforeend", html);
+            scrollToBottom();
+        }
+
+        function appendIdaResponse(response) {
+            const msg = {
+                timestamp: new Date().toISOString(),
+                userName: "Bot",
+                content: response.value
+            };
+            chatState.chatHistory.push(msg);
+
+            let references = "";
+            if (response.variables) {
+                const refsItem = response.variables.find(v => v.key === "references");
+                if (refsItem) {
+                    let refs = JSON.parse(refsItem.value);
+                    refs = refs.map(r => `<div class="reference">[<a href="${r.Source}" target="_blank">${r.Number}</a>] <a href="${r.Source}" target="_blank">${r.LinkLabel}</a></div>`);
+
+                    if (refs.length > 0) {
+                        refs.splice(0, 0, "<br/>");
+                        references = refs.join("\r\n");
+                    }
+                }
+            }
+            const html = `
+                <li class="clearfix">
+                    <div class="message-data">
+                        <span class="message-user">Ida</span>
+                        <span class="message-data-time">${new Date(msg.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="message other-message">
+                        ${mdToHtml(msg.content)}
+                        ${references}
+                    </div>
+                </li>`;
+
+            const list = document.getElementById("chatHistoryList");
+            list.insertAdjacentHTML("beforeend", html);
+            scrollToBottom();
+        }
+
+        function appendReferenceLink(refNumber, ref) {
+            const html = `<div>[<a href="${ref.source}">${refNumber}</a>] <a href="${ref.source}">${ref.linkLabel}</a></div>`;
+        }
+
+        async function submitChatRequest() {
+            $("#loadingStatus").css("display", "flex");
+            $(".chat-footer").css("height", "120px");
+            $(".chat-history").css("height", "calc(100% - 188px)")
+
+            const userInput = $("#userInput")[0];
+            const userInputText = userInput.value;
+            if (!userInputText) {
+                return;
+            }
+
+            const token = sessionStorage.getItem("token");
+            const url = `/api/v1/chat`;
+
+            const userMessage = {
+                timestamp: new Date().toISOString(),
+                userName: "Me",
+                content: userInputText
+            };
+            appendUserMessage(userMessage);
+            userInput.value = "";
+
+            scrollToBottom();
+
+            try {
+                let response = await fetch(url, {
+                    method: "post",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify(chatState),
+                    cache: "no-cache"
+                });
+
+                const idaResponse = await response.json();
+                appendIdaResponse(idaResponse);
+            }
+            catch (err) {
+                console.log(`Failed to communicate with Ida: ${err}`);
+            }
+
+            $("#loadingStatus").css("display", "none");
+            $(".chat-footer").css("height", "60px");
+            $(".chat-history").css("height", "calc(100% - 128px)")
+        }
+
+        $(document).ready(function () {
+            const userInput = $("#userInput")[0];
+            userInput.addEventListener("keyup", evt => {
+                // Submit chat request on Enter key
+                if (evt.key === "Enter") {
+                    evt.preventDefault();
+                    submitChatRequest();
+                }
+            });
+        });
+    </script>
+
+    <div class="card chat-app">
+        <div class="chat">
+
+            <div class="chat-header clearfix">
+                <div class="row" style="margin-top: 6px;">
+                    <div class="col-lg-6">
+                        <a href="javascript:void(0);" data-toggle="modal" data-target="#view_info">
+                            <img src="/ida/images/Ida.svg" alt="avatar">
+                        </a>
+                        <div class="chat-about">
+                            <h6 class="m-b-0">Ida</h6>
+                            <span>Your industrial digial assistant</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-history">
+                <ul id="chatHistoryList" class="m-b-0">
+                </ul>
+            </div>
+
+            <div class="chat-footer clearfix">
+
+                <div id="loadingStatus" style="display: none; padding: 8px;">
+                    <img src="/ida/images/Ida.svg" style="height: 40px; margin-right: 20px;" />
+                    <div class="infinity-loader" style="justify-items: start; --infinity-loader-width: 20px; --infinity-loader-height: 20px; --infinity-loader-progress-width: 2px; --infinity-loader-position: relative; --infinity-loader-top: 18px; --infinity-loader-left: 20px">
+                        <div class="bg">
+                            <div class="left-bg"></div>
+                            <div class="right-bg"></div>
+                        </div>
+                        <div class="fg">
+                            <div class="top-left-rect">
+                                <div></div>
+                            </div>
+                            <div class="bottom-right-rect">
+                                <div></div>
+                            </div>
+                            <div class="top-right-rect">
+                                <div></div>
+                            </div>
+                            <div class="bottom-left-rect">
+                                <div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-group mb-0">
+                    <input id="userInput" type="text" class="form-control" placeholder="Ask questions & make requests...">
+                    <div class="input-group-append">
+                        <span class="input-group-text send-button" onclick="submitChatRequest(this);">
+                            <i class="fa fa-send"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+    "name": "Onsight NOW Ida Chat for SAP",
+    "provider": "Librestream Technologies, Inc.",
+    "description": "Chat with Ida.",
+    "optimalHeight": "560px",
+    "version": "1.0.0",
+    "icon": "https://fsm-extension-app.azurewebsites.net/images/onsight-logo.svg",
+    "useShellSDK": true,
+    "parameters": [],
+    "outletPositions": [
+        "WFM_ACTIVITY_SIDEBAR",
+        "MDM_EQUIPMENT_DETAIL_PAGE_BOTTOM",
+        "SERVICE_CALL_ACTIVITY_OUTLET_TAB",
+        "SERVICE_CALL_VIEW_PAGE_EQUIPMENT_TAB_TOP"
+    ],
+    "helmChartVersion": "3.4.0"
+}

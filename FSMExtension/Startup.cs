@@ -25,6 +25,7 @@ namespace FSMExtension
             });
 
             services.AddHttpContextAccessor();
+            services.AddAuthentication();
 
             services.AddSingleton<HttpClient>();
             var mappingsContainerName = configuration.GetValue<string>("CosmosDB:MappingsContainer");

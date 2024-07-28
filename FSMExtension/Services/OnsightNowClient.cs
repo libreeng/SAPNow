@@ -6,20 +6,13 @@ using System.Threading.Tasks;
 
 namespace FSMExtension.Services
 {
-    public class OnsightNowClient
+    public class OnsightNowClient(ClientCredentials clientCredentials)
     {
         /// <summary>
         /// OAuth scopes required to use the Onsight NOW Meetings API.
         /// </summary>
-        private const string ApiScopes = "meeting_api collection_api";
+        private const string ApiScopes = "meeting_api collection_api ida_api";
 
-        private readonly ClientCredentials _clientCredentials;
-
-
-        public OnsightNowClient(ClientCredentials clientCreds)
-        {
-            _clientCredentials = clientCreds;
-        }
 
         /// <summary>
         /// The Onsight NOW API Token endpoint. This can be overridden at runtime by the now_OnsightNowTokenEndpoint environment variable.
@@ -32,6 +25,11 @@ namespace FSMExtension.Services
         public string MeetingsEndpoint { get; set; } = "https://demo-api.onsightnow.com/meetings";
 
         /// <summary>
+        /// The Onsight NOW Ida Chat API endpoint. This can be overridden at runtime by the now_OnsightNowMeetingsEndpoint environment variable.
+        /// </summary>
+        public string IdaChatEndpoint { get; set; } = "https://demo-api.onsightnow.com/ida";
+
+        /// <summary>
         /// Creates an Onsight NOW Meeting.
         /// </summary>
         /// <param name="meetingRequest"></param>
@@ -40,20 +38,30 @@ namespace FSMExtension.Services
         {
             var accessToken = await GetAccessTokenAsync();
 
-            using (var client = new HttpClient())
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {accessToken}");
+            
+            using var response = await client.PostAsJsonAsync(MeetingsEndpoint, meetingRequest);
+            if (!response.IsSuccessStatusCode)
             {
-                client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {accessToken}");
-                using (var response = await client.PostAsJsonAsync(MeetingsEndpoint, meetingRequest))
-                {
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        return string.Empty;
-                    }
-
-                    var meetingResponse = await response.Content.ReadAsAsync<CreateMeetingResponse>();
-                    return meetingResponse.JoinUrl;
-                }
+                return string.Empty;
             }
+
+            var meetingResponse = await response.Content.ReadAsAsync<CreateMeetingResponse>();
+            return meetingResponse.JoinUrl;
+        }
+
+        public async Task<IdaChatResponse> ChatWithIdaAsync(IdaChatRequest chatRequest)
+        {
+            var accessToken = await GetAccessTokenAsync();
+
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {accessToken}");
+
+            using var response = await client.PostAsJsonAsync(IdaChatEndpoint, chatRequest);
+            response.EnsureSuccessStatusCode();
+
+            return await response.Content.ReadAsAsync<IdaChatResponse>();
         }
 
         /// <summary>
@@ -66,8 +74,8 @@ namespace FSMExtension.Services
             [
                 new KeyValuePair<string, string>("grant_type", "client_credentials"),
                 new KeyValuePair<string, string>("scope", ApiScopes),
-                new KeyValuePair<string, string>("client_id", _clientCredentials.ClientId),
-                new KeyValuePair<string, string>("client_secret", _clientCredentials.ClientSecret)
+                new KeyValuePair<string, string>("client_id", clientCredentials.ClientId),
+                new KeyValuePair<string, string>("client_secret", clientCredentials.ClientSecret)
             ]);
 
             using var client = new HttpClient();
